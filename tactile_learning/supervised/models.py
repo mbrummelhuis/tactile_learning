@@ -9,45 +9,45 @@ from vit_pytorch.vit import ViT
 def create_model(
     in_dim,
     out_dim,
-    network_params,
+    model_params,
     saved_model_dir=None,
     device='cpu'
 ):
 
-    if network_params['model_type'] in ['simple_cnn', 'posenet_cnn']:
+    if model_params['model_type'] in ['simple_cnn', 'posenet_cnn']:
         model = CNN(
             in_dim=in_dim,
             in_channels=1,
             out_dim=out_dim,
-            **network_params['model_kwargs']
+            **model_params['model_kwargs']
         ).to(device)
         model.apply(weights_init_normal)
 
-    elif network_params['model_type'] == 'nature_cnn':
+    elif model_params['model_type'] == 'nature_cnn':
         model = NatureCNN(
             in_dim=in_dim,
             in_channels=1,
             out_dim=out_dim,
-            **network_params['model_kwargs']
+            **model_params['model_kwargs']
         ).to(device)
         model.apply(weights_init_normal)
 
-    elif network_params['model_type'] == 'resnet':
+    elif model_params['model_type'] == 'resnet':
         model = ResNet(
             ResidualBlock,
             out_dim=out_dim,
-            **network_params['model_kwargs'],
+            **model_params['model_kwargs'],
         ).to(device)
 
-    elif network_params['model_type'] == 'vit':
+    elif model_params['model_type'] == 'vit':
         model = ViT(
             image_size=in_dim[0],
             channels=1,
             num_classes=out_dim,
-            **network_params['model_kwargs']
+            **model_params['model_kwargs']
         ).to(device)
     else:
-        raise ValueError('Incorrect model_type specified:  %s' % (network_params['model_type'],))
+        raise ValueError('Incorrect model_type specified:  %s' % (model_params['model_type'],))
 
     if saved_model_dir is not None:
         model.load_state_dict(torch.load(os.path.join(
@@ -96,7 +96,6 @@ class CNN(nn.Module):
         cnn_modules.append(nn.Conv2d(in_channels, conv_layers[0], kernel_size=conv_kernel_sizes[0], stride=1, padding=2))
         if apply_batchnorm:
             cnn_modules.append(nn.BatchNorm2d(conv_layers[0]))
-        cnn_modules.append(nn.ReLU())
         cnn_modules.append(nn.ReLU())
         cnn_modules.append(nn.MaxPool2d(kernel_size=2, stride=2, padding=0))
 

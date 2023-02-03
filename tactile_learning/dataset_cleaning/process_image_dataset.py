@@ -4,11 +4,12 @@ import pathlib
 import cv2
 
 from tactile_image_processing.image_transforms import process_image
-from tactile_learning.utils_learning import make_dir, save_json_obj
+from tactile_learning.utils.utils_learning import make_dir, save_json_obj
 
 data_path = os.path.join(
     # "/home/alex/tactile_datasets/tactile_servo_control/tactip_127"
-    "/home/alex/tactile_datasets/braille_classification/tactip_331_25mm"
+    # "/home/alex/tactile_datasets/braille_classification/tactip_331_25mm"
+    "/home/alex/tactile_datasets/tactile_sim2real"
 )
 
 
@@ -32,7 +33,7 @@ def process_dataset(
     # make new dir for saving images
     new_dir_name = os.path.join(
         base_dir,
-        'processed_images',
+        f"processed_images_{image_processing_params['dims'][0]}",
     )
 
     if not dry_run:
@@ -57,6 +58,7 @@ def process_dataset(
             new_dir_name,
             filename + '.png'
         )
+        print(new_image_filename)
 
         # save the new image
         if not dry_run:
@@ -72,34 +74,41 @@ def process_dataset(
 if __name__ == '__main__':
 
     image_processing_params = {
-        'dims': (128, 128),
-        'bbox': [125, 67, 485, 427],
+        'dims': (64, 64),
+        'bbox': [80, 25, 530, 475],
         'thresh': [11, -30],
         'stdiz': False,
         'normlz': False,
-        'circle_mask_radius': 165,
+        'circle_mask_radius': 220,
     }
 
     dry_run = False
 
     # tasks = ['edge_2d', 'edge_3d', 'edge_5d', 'surface_3d']
-    tasks = ['alphabet', 'arrows']
+    # tasks = ['alphabet', 'arrows']
+    # tasks = ['surface_3d']
+    # tasks = ['edge_2d', 'surface_3d']
+    tasks = ['spherical_probe']
+    collection_modes = ['tap']
     sets = ['train', 'val']
 
     for task in tasks:
-        for set in sets:
+        for collection_mode in collection_modes:
+            for set in sets:
 
-            base_dir = os.path.join(
-                data_path,
-                task,
-                set,
-            )
+                base_dir = os.path.join(
+                    data_path,
+                    task,
+                    'tactip_331',
+                    collection_mode,
+                    set,
+                )
 
-            if not dry_run:
-                save_json_obj(image_processing_params, os.path.join(base_dir, 'image_processing_params'))
+                if not dry_run:
+                    save_json_obj(image_processing_params, os.path.join(base_dir, 'image_processing_params'))
 
-            process_dataset(
-                base_dir,
-                image_processing_params=image_processing_params,
-                dry_run=dry_run
-            )
+                process_dataset(
+                    base_dir,
+                    image_processing_params=image_processing_params,
+                    dry_run=dry_run
+                )

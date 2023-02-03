@@ -17,6 +17,7 @@ import torch.optim as optim
 import torch.nn as nn
 import torch
 from torch.utils.tensorboard import SummaryWriter
+from tactile_learning.utils.utils_learning import get_lr
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -79,6 +80,7 @@ def simple_train_model(
     optimizer = optim.Adam(
         model.parameters(),
         lr=learning_params['lr'],
+        betas=(learning_params["adam_b1"], learning_params["adam_b2"]),
         weight_decay=learning_params['adam_decay']
     )
 
@@ -88,10 +90,6 @@ def simple_train_model(
         patience=learning_params['lr_patience'],
         verbose=True
     )
-
-    def get_lr(optimizer):
-        for param_group in optimizer.param_groups:
-            return param_group['lr']
 
     def run_epoch(loader, n_batches, training=True):
 
@@ -129,7 +127,7 @@ def simple_train_model(
 
         return epoch_batch_loss, epoch_batch_acc
 
-    # get time for printing
+    # for tracking overall train time
     training_start_time = time.time()
 
     # for tracking metrics across training
@@ -171,6 +169,7 @@ def simple_train_model(
             print("Train Acc:  {:.6f}".format(np.mean(train_epoch_acc)))
             print("Val Loss:   {:.6f}".format(np.mean(val_epoch_loss)))
             print("Val Acc:    {:.6f}".format(np.mean(val_epoch_acc)))
+            print("")
 
             # write vals to tensorboard
             writer.add_scalar('loss/train', np.mean(train_epoch_loss), epoch)
