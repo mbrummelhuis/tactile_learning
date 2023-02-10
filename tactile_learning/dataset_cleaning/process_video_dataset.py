@@ -3,9 +3,9 @@ from glob import glob
 import pathlib
 import cv2
 
-from tactile_image_processing.image_transforms import load_video_frames
+from tactile_image_processing.image_processing_utils import load_video_frames
 from tactile_image_processing.image_transforms import process_image
-from tactile_learning.utils_learning import make_dir
+from tactile_learning.utils.utils_learning import make_dir
 
 data_path = os.path.join(
     "/home/alex/tactile_datasets/braille_classification/tactip_331_25mm"
@@ -84,7 +84,7 @@ if __name__ == '__main__':
         'circle_mask_radius': None,
     }
 
-    dry_run = False
+    dry_run = True
 
     # tasks = ['edge_2d', 'edge_3d', 'edge_5d', 'surface_3d']
     tasks = ['alphabet', 'arrows']
