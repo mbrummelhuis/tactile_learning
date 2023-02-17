@@ -8,6 +8,7 @@ from vit_pytorch.vit import ViT
 
 def create_model(
     in_dim,
+    in_channels,
     out_dim,
     model_params,
     saved_model_dir=None,
@@ -17,7 +18,7 @@ def create_model(
     if model_params['model_type'] in ['simple_cnn', 'posenet_cnn']:
         model = CNN(
             in_dim=in_dim,
-            in_channels=1,
+            in_channels=in_channels,
             out_dim=out_dim,
             **model_params['model_kwargs']
         ).to(device)
@@ -26,7 +27,7 @@ def create_model(
     elif model_params['model_type'] == 'nature_cnn':
         model = NatureCNN(
             in_dim=in_dim,
-            in_channels=1,
+            in_channels=in_channels,
             out_dim=out_dim,
             **model_params['model_kwargs']
         ).to(device)
@@ -35,6 +36,7 @@ def create_model(
     elif model_params['model_type'] == 'resnet':
         model = ResNet(
             ResidualBlock,
+            in_channels=in_channels,
             out_dim=out_dim,
             **model_params['model_kwargs'],
         ).to(device)
@@ -42,7 +44,7 @@ def create_model(
     elif model_params['model_type'] == 'vit':
         model = ViT(
             image_size=in_dim[0],
-            channels=1,
+            channels=in_channels,
             num_classes=out_dim,
             **model_params['model_kwargs']
         ).to(device)
@@ -56,7 +58,7 @@ def create_model(
 
     print(summary(
         model,
-        torch.zeros((1, 1, *in_dim)).to(device),
+        torch.zeros((1, in_channels, *in_dim)).to(device),
         show_input=True
     ))
 
@@ -123,7 +125,7 @@ class CNN(nn.Module):
 
         # compute shape out of cnn by doing one forward pass
         with torch.no_grad():
-            dummy_input = torch.zeros((1, 1, *in_dim))
+            dummy_input = torch.zeros((1, in_channels, *in_dim))
             n_flatten = np.prod(self.cnn(dummy_input).shape)
 
         fc_modules = []
@@ -177,7 +179,7 @@ class NatureCNN(nn.Module):
 
         # compute shape out of cnn by doing one forward pass
         with torch.no_grad():
-            dummy_input = torch.zeros((1, 1, *in_dim))
+            dummy_input = torch.zeros((1, in_channels, *in_dim))
             n_flatten = np.prod(self.cnn(dummy_input).shape)
 
         fc_modules = []
@@ -226,11 +228,11 @@ class ResidualBlock(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layers, out_dim):
+    def __init__(self, block, in_channels, layers, out_dim):
         super(ResNet, self).__init__()
         self.inplanes = 64
         self.conv1 = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3),
+            nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3),
             nn.BatchNorm2d(64),
             nn.ReLU()
         )

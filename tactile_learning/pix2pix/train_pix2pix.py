@@ -9,8 +9,6 @@ from torch.utils.tensorboard import SummaryWriter
 import torch.optim as optim
 from torchvision.utils import save_image, make_grid
 
-
-from tactile_learning.pix2pix.image_generator import Pix2PixImageGenerator
 from tactile_learning.utils.utils_learning import get_lr
 from tactile_learning.utils.utils_learning import make_dir
 
@@ -18,13 +16,10 @@ from tactile_learning.utils.utils_learning import make_dir
 def train_pix2pix(
     generator,
     discriminator,
-    input_train_data_dirs,
-    target_train_data_dirs,
-    input_val_data_dirs,
-    target_val_data_dirs,
+    train_generator,
+    val_generator,
     learning_params,
     image_processing_params,
-    augmentation_params,
     save_dir,
     device='cpu'
 ):
@@ -36,22 +31,8 @@ def train_pix2pix(
     image_dir = os.path.join(save_dir, 'val_images')
     make_dir(image_dir)
 
-    # Configure dataloaders
-    generator_args = {**image_processing_params, **augmentation_params}
-    training_generator = Pix2PixImageGenerator(
-        input_data_dirs=input_train_data_dirs,
-        target_data_dirs=target_train_data_dirs,
-        **generator_args
-    )
-
-    val_generator = Pix2PixImageGenerator(
-        input_data_dirs=input_val_data_dirs,
-        target_data_dirs=target_val_data_dirs,
-        **image_processing_params
-    )
-
     training_loader = torch.utils.data.DataLoader(
-        training_generator,
+        train_generator,
         batch_size=learning_params['batch_size'],
         shuffle=learning_params['shuffle'],
         num_workers=learning_params['n_cpu'],

@@ -1,13 +1,3 @@
-"""
-python train_model.py -t surface_3d
-python train_model.py -t edge_2d
-python train_model.py -t edge_3d
-python train_model.py -t edge_5d
-python train_model.py -t surface_3d edge_2d edge_3d edge_5d
-"""
-
-from tactile_learning.supervised.image_generator import ImageDataGenerator
-
 import os
 import time
 import numpy as np
@@ -26,30 +16,15 @@ def simple_train_model(
     prediction_mode,
     model,
     label_encoder,
-    train_data_dirs,
-    val_data_dirs,
-    csv_row_to_label,
+    train_generator,
+    val_generator,
     learning_params,
-    image_processing_params,
-    augmentation_params,
     save_dir,
     device='cpu'
 ):
 
     # tensorboard writer for tracking vars
     writer = SummaryWriter(os.path.join(save_dir, 'tensorboard_runs'))
-
-    # set generators and loaders
-    train_generator = ImageDataGenerator(
-        data_dirs=train_data_dirs,
-        csv_row_to_label=csv_row_to_label,
-        **{**image_processing_params, **augmentation_params}
-    )
-    val_generator = ImageDataGenerator(
-        data_dirs=val_data_dirs,
-        csv_row_to_label=csv_row_to_label,
-        **image_processing_params
-    )
 
     train_loader = torch.utils.data.DataLoader(
         train_generator,
