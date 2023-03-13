@@ -9,8 +9,8 @@ sns.set_theme(style="darkgrid")
 class LearningPlotter:
     def __init__(
         self,
-        max_epochs=None,
         save_dir=None,
+        max_epochs=None,
         plot_during_training=False,
         name="train_plot.png",
     ):
