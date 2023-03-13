@@ -6,12 +6,6 @@ import cv2
 from tactile_image_processing.image_transforms import process_image
 from tactile_learning.utils.utils_learning import make_dir, save_json_obj
 
-data_path = os.path.join(
-    # "/home/alex/tactile_datasets/tactile_servo_control/tactip_127"
-    # "/home/alex/tactile_datasets/braille_classification/tactip_331_25mm"
-    "/home/alex/tactile_datasets/tactile_sim2real"
-)
-
 
 def process_dataset(
     base_dir,
@@ -72,6 +66,12 @@ def process_dataset(
 
 
 if __name__ == '__main__':
+
+    data_path = os.path.join(
+        # "/home/alex/tactile_datasets/tactile_servo_control/tactip_127"
+        # "/home/alex/tactile_datasets/braille_classification/tactip_331_25mm"
+        "/home/alex/tactile_datasets/tactile_sim2real"
+    )
 
     image_processing_params = {
         'dims': (64, 64),
