@@ -22,16 +22,15 @@ def seed_everything(seed):
     torch.backends.cudnn.deterministic = True
 
 
-def make_dir(dir):
-    check_dir(dir)
+def make_dir(dir, check=True):
+    if check:
+        check_dir(dir)
     os.makedirs(dir, exist_ok=True)
 
 
 def check_dir(dir):
-
-    # check save dir exists
     if os.path.isdir(dir):
-        str_input = input("Save Directory already exists, would you like to continue (y,n)? ")
+        str_input = input(f"\n{dir}\nSave Directory already exists, would you like to continue (y,n)? ")
         if not str2bool(str_input):
             exit()
         else:
