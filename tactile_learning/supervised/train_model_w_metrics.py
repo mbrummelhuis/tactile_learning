@@ -11,10 +11,13 @@ import torch.nn as nn
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
+from tactile_learning.utils.utils_learning import get_lr
+
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 
 def train_model_w_metrics(
+    prediction_mode,
     model,
     label_encoder,
     train_generator,
@@ -42,11 +45,14 @@ def train_model_w_metrics(
         num_workers=learning_params['n_cpu']
     )
 
-    n_train_batches = len(train_loader)
-    n_val_batches = len(val_loader)
-
-    # define loss
-    loss = nn.MSELoss()
+    # define optimizer and loss
+    if prediction_mode == 'classification':
+        loss = nn.CrossEntropyLoss()
+    elif prediction_mode == 'regression':
+        loss = nn.MSELoss()
+    else:
+        raise Warning("Incorrect prediction mode provided, falling back on MSEloss")
+        loss = nn.MSELoss()
 
     # define optimizer
     optimizer = optim.Adam(
@@ -62,26 +68,20 @@ def train_model_w_metrics(
         verbose=True
     )
 
-    def get_lr(optimizer):
-        for param_group in optimizer.param_groups:
-            return param_group['lr']
-
-    # for convenience
-    target_label_names = label_encoder.target_label_names
-
-    def run_epoch(loader, n_batches, training=True):
+    def run_epoch(loader, n_batches_per_epoch, training=True):
 
         epoch_batch_loss = []
         epoch_batch_acc = []
 
-        if not training or calculate_train_metrics:
-            # complete dateframe of predictions and targets
-            acc_df = pd.DataFrame(columns=[*target_label_names, 'overall_acc'])
-            err_df = pd.DataFrame(columns=target_label_names)
-            pred_df = pd.DataFrame(columns=target_label_names)
-            targ_df = pd.DataFrame(columns=target_label_names)
+        # complete dateframe of predictions and targets
+        pred_df = pd.DataFrame()
+        targ_df = pd.DataFrame()
 
-        for batch in loader:
+        for i, batch in enumerate(loader):
+
+            # run set number of batches per epoch
+            if n_batches_per_epoch is not None and i >= n_batches_per_epoch:
+                break
 
             # get inputs
             inputs, labels_dict = batch['images'], batch['labels']
@@ -101,6 +101,11 @@ def train_model_w_metrics(
             loss_size = loss(outputs, labels)
             epoch_batch_loss.append(loss_size.item())
 
+            if prediction_mode == 'classification':
+                epoch_batch_acc.append((outputs.argmax(dim=1) == labels.argmax(dim=1)).float().mean().item())
+            else:
+                epoch_batch_acc.append(0.0)
+
             if training:
                 loss_size.backward()
                 optimizer.step()
@@ -118,27 +123,10 @@ def train_model_w_metrics(
                 pred_df = pd.concat([pred_df, batch_pred_df])
                 targ_df = pd.concat([targ_df, batch_targ_df])
 
-                # get metrics useful for training
-                batch_err_df, batch_acc_df = label_encoder.calc_batch_metrics(labels_dict, predictions_dict)
-
-                # append error to dataframe
-                err_df = pd.concat([err_df, batch_err_df])
-                acc_df = pd.concat([acc_df, batch_acc_df])
-
-                # statistics
-                epoch_batch_acc.append(acc_df['overall_acc'].mean())
-            else:
-                epoch_batch_acc.append(0.0)
-
-        if not training or calculate_train_metrics:
-            # reset indices to be 0 -> test set size
-            acc_df = acc_df.reset_index(drop=True).fillna(0.0)
-            err_df = err_df.reset_index(drop=True).fillna(0.0)
-            pred_df = pred_df.reset_index(drop=True).fillna(0.0)
-            targ_df = targ_df.reset_index(drop=True).fillna(0.0)
-            return epoch_batch_loss, epoch_batch_acc, acc_df, err_df, pred_df, targ_df
-        else:
-            return epoch_batch_loss, epoch_batch_acc
+        # reset indices to be 0 -> test set size
+        pred_df = pred_df.reset_index(drop=True).fillna(0.0)
+        targ_df = targ_df.reset_index(drop=True).fillna(0.0)
+        return epoch_batch_loss, epoch_batch_acc, pred_df, targ_df
 
     # get time for printing
     training_start_time = time.time()
@@ -157,19 +145,15 @@ def train_model_w_metrics(
         # Main training loop
         for epoch in range(1, learning_params['epochs'] + 1):
 
-            if not calculate_train_metrics:
-                train_epoch_loss, train_epoch_acc = run_epoch(
-                    train_loader, n_train_batches, training=True
-                )
-            else:
-                train_epoch_loss, train_epoch_acc, train_acc_df, train_err_df, _, _ = run_epoch(
-                    train_loader, n_train_batches, training=True
-                )
+            # ========= Training =========
+            train_epoch_loss, train_epoch_acc, train_pred_df, train_targ_df = run_epoch(
+                train_loader, learning_params['n_train_batches_per_epoch'], training=True
+            )
 
             # ========= Validation =========
             model.eval()
-            val_epoch_loss, val_epoch_acc, val_acc_df, val_err_df, val_pred_df, val_targ_df = run_epoch(
-                val_loader, n_val_batches, training=False
+            val_epoch_loss, val_epoch_acc, val_pred_df, val_targ_df = run_epoch(
+                val_loader, learning_params['n_val_batches_per_epoch'], training=False
             )
             model.train()
 
@@ -183,25 +167,10 @@ def train_model_w_metrics(
             print("")
             print("")
             print("Epoch: {}".format(epoch))
-            print("")
-
-            print("Train Metrics")
-
-            print("train_err: {:.6f}".format(np.mean(train_epoch_loss)))
-            if calculate_train_metrics:
-                print(train_err_df[target_label_names].mean())
-
-            print("train_acc: {:.6f}".format(np.mean(train_epoch_acc)))
-            if calculate_train_metrics:
-                print(train_acc_df[target_label_names].mean())
-
-            print("")
-            print("Validation Metrics")
-            print("val_err: {:.6f}".format(np.mean(val_epoch_loss)))
-            print(val_err_df[target_label_names].mean())
-
-            print("val_acc: {:.6f}".format(np.mean(val_epoch_acc)))
-            print(val_acc_df[target_label_names].mean())
+            print("Train Loss: {:.6f}".format(np.mean(train_epoch_loss)))
+            print("Train Acc:  {:.6f}".format(np.mean(train_epoch_acc)))
+            print("Val Loss:   {:.6f}".format(np.mean(val_epoch_loss)))
+            print("Val Acc:    {:.6f}".format(np.mean(val_epoch_acc)))
             print("")
 
             # write vals to tensorboard
@@ -211,12 +180,23 @@ def train_model_w_metrics(
             writer.add_scalar('accuracy/val', np.mean(val_epoch_acc), epoch)
             writer.add_scalar('learning_rate', get_lr(optimizer), epoch)
 
-            for label_name in target_label_names:
-                if calculate_train_metrics:
-                    writer.add_scalar(f'accuracy/train/{label_name}', train_acc_df[label_name].mean(), epoch)
-                    writer.add_scalar(f'loss/train/{label_name}', train_err_df[label_name].mean(), epoch)
-                writer.add_scalar(f'accuracy/val/{label_name}', val_acc_df[label_name].mean(), epoch)
-                writer.add_scalar(f'loss/val/{label_name}', val_err_df[label_name].mean(), epoch)
+            # calculate task metrics
+            if calculate_train_metrics:
+                train_metrics = label_encoder.calc_metrics(train_pred_df, train_targ_df)
+            val_metrics = label_encoder.calc_metrics(val_pred_df, val_targ_df)
+
+            # print task metrics
+            if calculate_train_metrics:
+                print("Train Metrics")
+                label_encoder.print_metrics(train_metrics)
+                print("")
+            print("Validation Metrics")
+            label_encoder.print_metrics(val_metrics)
+
+            # write task_metrics to tensorboard
+            if calculate_train_metrics:
+                label_encoder.write_metrics(writer, train_metrics, epoch, mode='train')
+            label_encoder.write_metrics(writer, val_metrics, epoch, mode='val')
 
             # track weights on tensorboard
             for name, weight in model.named_parameters():
@@ -228,7 +208,7 @@ def train_model_w_metrics(
             if error_plotter:
                 if error_plotter.plot_during_training:
                     error_plotter.update(
-                        val_pred_df, val_targ_df, val_err_df
+                        val_pred_df, val_targ_df, val_metrics
                     )
 
             # save the model with lowest val loss
@@ -244,10 +224,6 @@ def train_model_w_metrics(
                 # save loss and acc, save val
                 save_vars = [train_loss, val_loss, train_acc, val_acc]
                 with open(os.path.join(save_dir, 'train_val_loss_acc.pkl'), 'bw') as f:
-                    pickle.dump(save_vars, f)
-
-                save_vars = [val_pred_df, val_targ_df, val_err_df, target_label_names]
-                with open(os.path.join(save_dir, 'val_pred_targ_err.pkl'), 'bw') as f:
                     pickle.dump(save_vars, f)
 
             # decay the lr
