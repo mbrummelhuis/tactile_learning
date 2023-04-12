@@ -184,6 +184,8 @@ def simple_train_model(
         os.path.join(save_dir, 'final_model.pth')
     )
 
+    return lowest_val_loss, total_training_time
+
 
 if __name__ == "__main__":
     pass

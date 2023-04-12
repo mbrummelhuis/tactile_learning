@@ -13,8 +13,8 @@ class LearningPlotter:
         self,
         save_dir=None,
         max_epochs=None,
-        plot_during_training=False,
         name="train_plot.png",
+        plot_during_training=False,
     ):
         self._max_epochs = max_epochs
         self._save_dir = save_dir
@@ -268,12 +268,13 @@ class RegressionPlotter:
         metrics=None,
     ):
         if not self.plot_during_training:
+            plt.ion()
             self._fig, self._axs = plt.subplots(self.n_rows, self.n_cols,
                                                 figsize=(4*self.n_cols, 3.5*self.n_rows))
             self._fig.subplots_adjust(wspace=0.3)
 
         self.update(pred_df, targ_df, metrics)
-        plt.show()
+        # plt.show()
 
 
 if __name__ == '__main__':
