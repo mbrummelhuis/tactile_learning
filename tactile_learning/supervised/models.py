@@ -12,6 +12,7 @@ def create_model(
     out_dim,
     model_params,
     saved_model_dir=None,
+    display_model=True,
     device='cpu'
 ):
 
@@ -56,11 +57,12 @@ def create_model(
             saved_model_dir, 'best_model.pth'), map_location='cpu')
         )
 
-    print(summary(
-        model,
-        torch.zeros((1, in_channels, *in_dim)).to(device),
-        show_input=True
-    ))
+    if display_model:
+        print(summary(
+            model,
+            torch.zeros((1, in_channels, *in_dim)).to(device),
+            show_input=True
+        ))
 
     return model
 
