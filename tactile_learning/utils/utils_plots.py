@@ -173,7 +173,7 @@ class RegressionPlotter:
         plot_during_training=False,
         plot_interp=True
     ):
-        self.target_label_names = task_params['target_label_names']
+        self.target_label_names = list(filter(None, task_params['target_label_names']))
         self.save_dir = save_dir
         self.name = name
         self.plot_during_training = plot_during_training
@@ -203,7 +203,7 @@ class RegressionPlotter:
 
         n_smooth = int(pred_df.shape[0] / 20)
 
-        err_df = metrics['err']
+        err_df = metrics['err']  ## BUG does not handle None default
 
         for ax, label_name in zip(self._axs.flat, self.target_label_names):
             if label_name:
