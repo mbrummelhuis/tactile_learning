@@ -109,7 +109,7 @@ class ClassificationPlotter:
         self.normalize = normalize
         self.block = True
 
-        if self.final_only:
+        if not self.final_only:
             plt.ion()
             plt.figure()
             self._fig = plt.gcf()
