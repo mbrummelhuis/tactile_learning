@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.distributions.normal import Normal
 from pytorch_model_summary import summary
 from vit_pytorch.vit import ViT
 
@@ -16,11 +17,16 @@ def create_model(
     device='cpu'
 ):
 
+    if 'mdn_kwargs' in model_params:
+        model_out_dim = model_params['mdn_kwargs']['model_out_dim']
+    else:
+        model_out_dim = out_dim
+
     if model_params['model_type'] in ['simple_cnn', 'posenet_cnn']:
         model = CNN(
             in_dim=in_dim,
             in_channels=in_channels,
-            out_dim=out_dim,
+            out_dim=model_out_dim,
             **model_params['model_kwargs']
         ).to(device)
         model.apply(weights_init_normal)
@@ -29,7 +35,7 @@ def create_model(
         model = NatureCNN(
             in_dim=in_dim,
             in_channels=in_channels,
-            out_dim=out_dim,
+            out_dim=model_out_dim,
             **model_params['model_kwargs']
         ).to(device)
         model.apply(weights_init_normal)
@@ -38,7 +44,7 @@ def create_model(
         model = ResNet(
             ResidualBlock,
             in_channels=in_channels,
-            out_dim=out_dim,
+            out_dim=model_out_dim,
             **model_params['model_kwargs'],
         ).to(device)
 
@@ -46,11 +52,18 @@ def create_model(
         model = ViT(
             image_size=in_dim[0],
             channels=in_channels,
-            num_classes=out_dim,
+            num_classes=model_out_dim,
             **model_params['model_kwargs']
         ).to(device)
     else:
         raise ValueError('Incorrect model_type specified:  %s' % (model_params['model_type'],))
+
+    if 'mdn_kwargs' in model_params:
+        model = MDNHead(
+            model=model,
+            out_dim=out_dim,
+            **model_params['mdn_kwargs']
+        ).to(device)
 
     if saved_model_dir is not None:
         model.load_state_dict(torch.load(os.path.join(
@@ -132,7 +145,10 @@ class CNN(nn.Module):
 
         fc_modules = []
         fc_modules.append(nn.Linear(n_flatten, fc_layers[0]))
-        fc_modules.append(nn.ReLU())
+        if activation == 'relu':
+            fc_modules.append(nn.ReLU())
+        elif activation == 'elu':
+            fc_modules.append(nn.ELU())
         for idx in range(len(fc_layers) - 1):
             fc_modules.append(nn.Linear(fc_layers[idx], fc_layers[idx + 1]))
             if activation == 'relu':
@@ -273,3 +289,149 @@ class ResNet(nn.Module):
         x = self.fc(x)
 
         return x
+
+
+class MDNHead(nn.Module):
+    """
+    Implementation of Mixture Density Networks in Pytorch from
+
+    https://github.com/tonyduan/mixture-density-network
+
+    Mixture density network.
+    [ Bishop, 1994 ]
+    Parameters
+    ----------
+    dim_in: int; dimensionality of the covariates
+    dim_out: int; dimensionality of the response variable
+    n_components: int; number of components in the mixture model
+    """
+
+    def __init__(
+        self,
+        model,
+        out_dim,
+        model_out_dim,
+        hidden_dims,
+        activation,
+        n_mdn_components,
+        noise_type='diagonal',
+        fixed_noise_level=None
+    ):
+        super(MDNHead, self).__init__()
+
+        assert (fixed_noise_level is not None) == (noise_type == 'fixed')
+
+        num_sigma_channels = {
+            'diagonal': out_dim * n_mdn_components,
+            'isotropic': n_mdn_components,
+            'isotropic_across_clusters': 1,
+            'fixed': 0,
+        }[noise_type]
+
+        self.out_dim, self.n_components = out_dim, n_mdn_components
+        self.noise_type, self.fixed_noise_level = noise_type, fixed_noise_level
+
+        # init pi and normal heads
+        pi_network_modules = [model]
+        normal_network_modules = [model]
+
+        # add the first layer
+        pi_network_modules.append(nn.ReLU())
+        pi_network_modules.append(nn.Linear(model_out_dim, hidden_dims[0]))
+        normal_network_modules.append(nn.ReLU())
+        normal_network_modules.append(nn.Linear(model_out_dim, hidden_dims[0]))
+        if activation == 'relu':
+            pi_network_modules.append(nn.ReLU())
+            normal_network_modules.append(nn.ReLU())
+        elif activation == 'elu':
+            pi_network_modules.append(nn.ELU())
+            normal_network_modules.append(nn.ELU())
+
+        # add the remaining hidden layers
+        for idx in range(len(hidden_dims) - 1):
+            pi_network_modules.append(nn.Linear(hidden_dims[idx], hidden_dims[idx + 1]))
+            normal_network_modules.append(nn.Linear(hidden_dims[idx], hidden_dims[idx + 1]))
+            if activation == 'relu':
+                pi_network_modules.append(nn.ReLU())
+                normal_network_modules.append(nn.ReLU())
+            elif activation == 'elu':
+                pi_network_modules.append(nn.ELU())
+                normal_network_modules.append(nn.ELU())
+
+        # add the final layers
+        pi_network_modules.append(nn.Linear(hidden_dims[-1], n_mdn_components))
+        normal_network_modules.append(nn.Linear(hidden_dims[-1], out_dim * n_mdn_components + num_sigma_channels))
+
+        self.pi_network = nn.Sequential(*pi_network_modules)
+        self.normal_network = nn.Sequential(*normal_network_modules)
+
+        # self.pi_network = nn.Sequential(
+        #     model,
+        #     nn.ReLU(),
+        #     nn.Linear(out_dim, hidden_dim),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim, n_mdn_components),
+        # )
+        #
+        # self.normal_network = nn.Sequential(
+        #     model,
+        #     nn.ReLU(),
+        #     nn.Linear(out_dim, hidden_dim),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim, out_dim * n_mdn_components + num_sigma_channels)
+        # )
+
+    def forward(self, x, eps=1e-6):
+        """
+        Returns
+        -------
+        log_pi: (bsz, n_components)
+        mu: (bsz, n_components, dim_out)
+        sigma: (bsz, n_components, dim_out)
+        """
+
+        log_pi = torch.log_softmax(self.pi_network(x), dim=-1)
+        normal_params = self.normal_network(x)
+        mu = normal_params[..., :self.out_dim * self.n_components]
+        sigma = normal_params[..., self.out_dim * self.n_components:]
+
+        if self.noise_type == 'diagonal':
+            sigma = torch.exp(sigma + eps)
+        if self.noise_type == 'isotropic':
+            sigma = torch.exp(sigma + eps).repeat(1, self.dim_out)
+        if self.noise_type == 'isotropic_across_clusters':
+            sigma = torch.exp(sigma + eps).repeat(1, self.n_components * self.dim_out)
+        if self.noise_type == 'fixed':
+            sigma = torch.full_like(mu, fill_value=self.fixed_noise_level)
+
+        mu = mu.reshape(-1, self.n_components, self.out_dim)
+        sigma = sigma.reshape(-1, self.n_components, self.out_dim)
+
+        return log_pi, mu, sigma
+
+    def loss(self, x, y):
+        """
+        Calculates negative log_likelihood.
+        """
+        log_pi, mu, sigma = self.forward(x)
+        z_score = (y.unsqueeze(1) - mu) / sigma
+        normal_loglik = (
+            -0.5 * torch.einsum("bij,bij->bi", z_score, z_score)
+            - torch.sum(torch.log(sigma), dim=-1)
+        )
+        loglik = torch.logsumexp(log_pi + normal_loglik, dim=-1)
+        return -loglik
+
+    def sample(self, x, deterministic=True):
+        """
+        Samples from the predicted distribution.
+        """
+        log_pi, mu, sigma = self.forward(x)
+        pi = torch.exp(log_pi)
+        pred_mean = torch.sum(pi.unsqueeze(dim=-1) * mu, dim=1)
+        pred_stddev = torch.sqrt(torch.sum(pi.unsqueeze(dim=-1) * (sigma**2 + mu**2), dim=1) - pred_mean**2).squeeze()
+        if deterministic:
+            return pred_mean, pred_stddev
+        else:
+            pi_distribution = Normal(pred_mean, pred_stddev)
+            return pi_distribution.rsample()

@@ -57,7 +57,7 @@ class Pix2PixImageGenerator(torch.utils.data.Dataset):
             df = pd.read_csv(os.path.join(data_dir, 'targets.csv'))
 
             # check for a processed image dir first
-            image_dir = os.path.join(data_dir, f'processed_images')
+            image_dir = os.path.join(data_dir, 'processed_images')
 
             # fall back on standard images
             if not os.path.isdir(image_dir):
