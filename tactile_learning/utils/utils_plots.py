@@ -212,7 +212,7 @@ class RegressionPlotter:
                 pred_df = pred_df.drop('temp', axis=1)
 
                 try:
-                    err_df = metrics('err')
+                    err_df = metrics['err']
                     err_df = err_df.assign(temp=targ_df[label_name])
                     err_df = err_df.sort_values(by='temp')
                     err_df = err_df.drop('temp', axis=1)
