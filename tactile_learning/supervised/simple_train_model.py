@@ -1,4 +1,5 @@
 import os
+import warnings
 import time
 import numpy as np
 from tqdm import tqdm
@@ -74,7 +75,7 @@ def simple_train_model(
         for batch in loader:
 
             # get inputs
-            inputs, labels_dict = batch['images'], batch['labels']
+            inputs, labels_dict = batch['inputs'], batch['labels']
 
             # wrap them in a Variable object
             inputs = Variable(inputs).float().to(device)
@@ -154,10 +155,13 @@ def simple_train_model(
             writer.add_scalar('learning_rate', get_lr(optimizer), epoch)
 
             # track weights on tensorboard
-            for name, weight in model.named_parameters():
-                full_name = f'{os.path.basename(os.path.normpath(save_dir))}/{name}'
-                writer.add_histogram(full_name, weight, epoch)
-                writer.add_histogram(f'{full_name}.grad', weight.grad, epoch)
+            try:
+                for name, weight in model.named_parameters():
+                    full_name = f'{os.path.basename(os.path.normpath(save_dir))}/{name}'
+                    writer.add_histogram(full_name, weight, epoch)
+                    writer.add_histogram(f'{full_name}.grad', weight.grad, epoch)
+            except ValueError:
+                warnings.warn("Unable to save weights/gradients to tensorboard.")
 
             # save the model with lowest val loss
             if np.mean(val_epoch_loss) < lowest_val_loss:

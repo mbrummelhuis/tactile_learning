@@ -101,7 +101,7 @@ class ImageDataGenerator(torch.utils.data.Dataset):
 
         # get label
         target = self._csv_row_to_label(row)
-        sample = {'images': processed_image, 'labels': target}
+        sample = {'inputs': processed_image, 'labels': target}
 
         return sample
 
@@ -158,11 +158,11 @@ def demo_image_generation(
     for (i_batch, sample_batched) in enumerate(loader, 0):
 
         # shape = (batch, n_frames, width, height)
-        images = sample_batched['images']
+        images = sample_batched['inputs']
         labels = sample_batched['labels']
         cv2.namedWindow("example_images")
 
-        for i in range(learning_params['batch_size']):
+        for i in range(images.shape[0]):
             for key, item in labels.items():
                 print(key.split('_')[0], ': ', item[i])
             print('')

@@ -16,7 +16,16 @@ def create_model(
     device='cpu'
 ):
 
-    if model_params['model_type'] in ['simple_cnn', 'posenet_cnn']:
+    if model_params['model_type'] in ['fcn']:
+        model = FCN(
+            in_dim=in_dim,
+            in_channels=in_channels,
+            out_dim=out_dim,
+            **model_params['model_kwargs']
+        ).to(device)
+        model.apply(weights_init_normal)
+
+    elif model_params['model_type'] in ['simple_cnn', 'posenet_cnn']:
         model = CNN(
             in_dim=in_dim,
             in_channels=in_channels,
@@ -58,9 +67,13 @@ def create_model(
         )
 
     if display_model:
+        if model_params['model_type'] == 'fcn':
+            dummy_input = torch.zeros((1, in_dim)).to(device)
+        else:
+            dummy_input = torch.zeros((1, in_channels, *in_dim)).to(device)
         print(summary(
             model,
-            torch.zeros((1, in_channels, *in_dim)).to(device),
+            dummy_input,
             show_input=True
         ))
 
@@ -74,6 +87,51 @@ def weights_init_normal(m):
     elif classname.find("BatchNorm2d") != -1:
         torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
         torch.nn.init.constant_(m.bias.data, 0.0)
+
+
+class FCN(nn.Module):
+    def __init__(
+        self,
+        in_dim,
+        in_channels,
+        out_dim,
+        fc_layers=[128, 128],
+        activation='relu',
+        dropout=0.0,
+        apply_batchnorm=False,
+    ):
+        super(FCN, self).__init__()
+
+        assert len(fc_layers) > 0, "fc_layers must contain values"
+
+        fc_modules = []
+
+        # add first layer
+        fc_modules.append(nn.Linear(in_dim, fc_layers[0]))
+        if apply_batchnorm:
+            fc_modules.append(nn.BatchNorm1d(fc_layers[0]))
+        if activation == 'relu':
+            fc_modules.append(nn.ReLU())
+        elif activation == 'elu':
+            fc_modules.append(nn.ELU())
+
+        # add remaining layers
+        for idx in range(len(fc_layers) - 1):
+            fc_modules.append(nn.Linear(fc_layers[idx], fc_layers[idx + 1]))
+            if apply_batchnorm:
+                fc_modules.append(nn.BatchNorm1d(fc_layers[idx + 1]))
+            if activation == 'relu':
+                fc_modules.append(nn.ReLU())
+            elif activation == 'elu':
+                fc_modules.append(nn.ELU())
+            fc_modules.append(nn.Dropout(dropout))
+        fc_modules.append(nn.Linear(fc_layers[-1], out_dim))
+
+        self.fc = nn.Sequential(*fc_modules)
+
+    def forward(self, x):
+        x = x.reshape(x.shape[0], -1)
+        return self.fc(x)
 
 
 class CNN(nn.Module):
@@ -100,7 +158,10 @@ class CNN(nn.Module):
         cnn_modules.append(nn.Conv2d(in_channels, conv_layers[0], kernel_size=conv_kernel_sizes[0], stride=1, padding=2))
         if apply_batchnorm:
             cnn_modules.append(nn.BatchNorm2d(conv_layers[0]))
-        cnn_modules.append(nn.ReLU())
+        if activation == 'relu':
+            cnn_modules.append(nn.ReLU())
+        elif activation == 'elu':
+            cnn_modules.append(nn.ELU())
         cnn_modules.append(nn.MaxPool2d(kernel_size=2, stride=2, padding=0))
 
         # add the remaining conv layers by iterating through params
@@ -132,7 +193,10 @@ class CNN(nn.Module):
 
         fc_modules = []
         fc_modules.append(nn.Linear(n_flatten, fc_layers[0]))
-        fc_modules.append(nn.ReLU())
+        if activation == 'relu':
+            fc_modules.append(nn.ReLU())
+        elif activation == 'elu':
+            fc_modules.append(nn.ELU())
         for idx in range(len(fc_layers) - 1):
             fc_modules.append(nn.Linear(fc_layers[idx], fc_layers[idx + 1]))
             if activation == 'relu':

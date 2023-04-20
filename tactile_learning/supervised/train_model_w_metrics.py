@@ -1,5 +1,5 @@
-
 import os
+import warnings
 import time
 import pickle
 import numpy as np
@@ -84,7 +84,7 @@ def train_model_w_metrics(
                 break
 
             # get inputs
-            inputs, labels_dict = batch['images'], batch['labels']
+            inputs, labels_dict = batch['inputs'], batch['labels']
 
             # wrap them in a Variable object
             inputs = Variable(inputs).float().to(device)
@@ -199,10 +199,13 @@ def train_model_w_metrics(
             label_encoder.write_metrics(writer, val_metrics, epoch, mode='val')
 
             # track weights on tensorboard
-            for name, weight in model.named_parameters():
-                full_name = f'{os.path.basename(os.path.normpath(save_dir))}/{name}'
-                writer.add_histogram(full_name, weight, epoch)
-                writer.add_histogram(f'{full_name}.grad', weight.grad, epoch)
+            try:
+                for name, weight in model.named_parameters():
+                    full_name = f'{os.path.basename(os.path.normpath(save_dir))}/{name}'
+                    writer.add_histogram(full_name, weight, epoch)
+                    writer.add_histogram(f'{full_name}.grad', weight.grad, epoch)
+            except ValueError:
+                warnings.warn("Unable to save weights/gradients to tensorboard.")
 
             # update plots
             if error_plotter:
