@@ -62,4 +62,4 @@ def train_model(
                 device=device
             )
 
-    return val_loss, train_time 
+    return val_loss, train_time
