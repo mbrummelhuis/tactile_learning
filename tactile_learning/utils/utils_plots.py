@@ -195,7 +195,7 @@ class RegressionPlotter:
         self,
         pred_df,
         targ_df,
-        metrics=None,
+        metrics='',
     ):
         for ax in self._axs.flat:
             ax.clear()
@@ -211,25 +211,29 @@ class RegressionPlotter:
                 pred_df = pred_df.sort_values(by='temp')
                 pred_df = pred_df.drop('temp', axis=1)
 
-                try:
-                    err_df = metrics['err']
-                    err_df = err_df.assign(temp=targ_df[label_name])
-                    err_df = err_df.sort_values(by='temp')
-                    err_df = err_df.drop('temp', axis=1)
+                if 'stdev' in metrics:
+                    unc_df = metrics['stdev']
+                    cmap = 'inferno'
+                elif 'err' in metrics:
+                    unc_df = metrics['err']
+                    cmap = 'gray'
+                else:
+                    unc_df = pred_df * 0
+                    cmap = 'gray'
 
-                    ax.scatter(
-                        targ_df[label_name].astype(float),
-                        pred_df[label_name].astype(float),
-                        s=1, c=err_df[label_name], cmap="inferno"
-                    )
+                unc_df = unc_df.assign(temp=targ_df[label_name])
+                unc_df = unc_df.sort_values(by='temp')
+                unc_df = unc_df.drop('temp', axis=1)
 
-                    ax.text(0.05, 0.9, 'MAE = {:.4f}'.format(err_df[label_name].mean()), transform=ax.transAxes)
+                ax.scatter(
+                    targ_df[label_name].astype(float),
+                    pred_df[label_name].astype(float),
+                    s=1, c=unc_df[label_name], cmap=cmap
+                )
 
-                except:
-                    ax.scatter(
-                        targ_df[label_name].astype(float),
-                        pred_df[label_name].astype(float), s=1, c='k'
-                    )
+                if 'err' in metrics:
+                    mae = metrics['err'][label_name].mean()
+                    ax.text(0.05, 0.9, f'MAE = {mae:.4f}', transform=ax.transAxes)
 
                 ax.plot(
                     targ_df[label_name].astype(float).rolling(n_smooth).mean(),
@@ -261,7 +265,7 @@ class RegressionPlotter:
         self,
         pred_df,
         targ_df,
-        metrics=None,
+        metrics='',
     ):
         if self.final_only:
             self._fig, self._axs = plt.subplots(self.n_rows, self.n_cols,
