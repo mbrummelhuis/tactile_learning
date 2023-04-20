@@ -164,7 +164,7 @@ def demo_image_generation(
 
         for i in range(images.shape[0]):
             for key, item in labels.items():
-                print(key.split('_')[0], ': ', item[i])
+                print(key, ': ', item[i])
             print('')
 
             # convert image to opencv format, not pytorch
