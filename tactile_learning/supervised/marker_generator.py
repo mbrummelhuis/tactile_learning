@@ -6,39 +6,32 @@ import torch
 from tactile_learning.supervised.image_generator import numpy_collate
 
 
-class PinDataGenerator(torch.utils.data.Dataset):
+class MarkerDataGenerator(torch.utils.data.Dataset):
 
     def __init__(
         self,
         data_dirs,
         csv_row_to_label,
+        num_markers
     ):
-
-        # check if data dirs are lists
-        assert isinstance(data_dirs, list), "data_dirs should be a list!"
+        assert isinstance(data_dirs, list), "data_dirs must be a list"
 
         self._csv_row_to_label = csv_row_to_label
 
-        # load csv file
-        self._label_df = self.load_data_dirs(data_dirs)
+        # load labels and select by marker number
+        label_df = self.load_labels(data_dirs)
+        self._label_df = label_df[label_df['num_markers']==num_markers]
 
-    def load_data_dirs(self, data_dirs):
+    def load_labels(self, data_dirs):
 
-        # add collumn for which dir data is stored in
+        # combine and add column for data dir
         df_list = []
         for data_dir in data_dirs:
-            df = pd.read_csv(os.path.join(data_dir, 'targets.csv'))
-
-            # check for a processed image dir first
-            keypoints_dir = os.path.join(data_dir, 'extracted_pins')
-
-            df['keypoints_dir'] = keypoints_dir
+            df = pd.read_csv(os.path.join(data_dir, 'targets_markers.csv'))
+            df['keypoints_dir'] = os.path.join(data_dir, 'processed_markers')
             df_list.append(df)
 
-        # concat all df
-        full_df = pd.concat(df_list)
-
-        return full_df
+        return pd.concat(df_list)
 
     def __len__(self):
         'Denotes the number of batches per epoch'
@@ -49,7 +42,7 @@ class PinDataGenerator(torch.utils.data.Dataset):
 
         # Generate data
         row = self._label_df.iloc[index]
-        keypoints_filename = os.path.join(row['keypoints_dir'], row['keypoints_filename'])
+        keypoints_filename = os.path.join(row['keypoints_dir'], row['markers_file'])
         keypoints = np.load(keypoints_filename)
 
         # get label
@@ -59,16 +52,18 @@ class PinDataGenerator(torch.utils.data.Dataset):
         return sample
 
 
-def demo_pin_generation(
+def demo_marker_generation(
     data_dirs,
     csv_row_to_label,
-    learning_params
+    learning_params,
+    num_markers
 ):
 
     # Configure dataloaders
-    generator = PinDataGenerator(
-        data_dirs=data_dirs,
-        csv_row_to_label=csv_row_to_label,
+    generator = MarkerDataGenerator(
+        data_dirs,
+        csv_row_to_label,
+        num_markers
     )
 
     loader = torch.utils.data.DataLoader(
@@ -80,7 +75,7 @@ def demo_pin_generation(
     )
 
     # iterate through
-    for (i_batch, sample_batched) in enumerate(loader, 0):
+    for _, sample_batched in enumerate(loader, 0):
 
         # shape = (batch, n_frames, width, height)
         inputs = sample_batched['inputs']
