@@ -45,17 +45,20 @@ class ImageDataGenerator(torch.utils.data.Dataset):
 
     def load_data_dirs(self, data_dirs):
 
+        # check if images or processed images; use for all dirs
+        is_processed = os.path.isdir(os.path.join(data_dirs[0], 'processed_images'))
+
         # add collumn for which dir data is stored in
         df_list = []
         for data_dir in data_dirs:
-            df = pd.read_csv(os.path.join(data_dir, 'targets.csv'))
 
-            # check for a processed image dir first
-            image_dir = os.path.join(data_dir, 'processed_images')
-
-            # fall back on standard images
-            if not os.path.isdir(image_dir):
+            # use processed images or fall back on standard images
+            if is_processed:
+                image_dir = os.path.join(data_dir, 'processed_images')
+                df = pd.read_csv(os.path.join(data_dir, 'targets_images.csv'))
+            else: 
                 image_dir = os.path.join(data_dir, 'images')
+                df = pd.read_csv(os.path.join(data_dir, 'targets.csv'))
 
             df['image_dir'] = image_dir
             df_list.append(df)
