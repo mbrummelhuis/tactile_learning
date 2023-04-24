@@ -65,7 +65,7 @@ def train_mdn_model(
         for batch in loader:
 
             # get inputs
-            inputs, labels_dict = batch['images'], batch['labels']
+            inputs, labels_dict = batch['inputs'], batch['labels']
 
             # wrap them in a Variable object
             inputs = Variable(inputs).float().to(device)
