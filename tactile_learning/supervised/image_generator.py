@@ -23,6 +23,7 @@ class ImageDataGenerator(torch.utils.data.Dataset):
         rzoom=None,
         brightlims=None,
         noise_var=None,
+        gray=True
     ):
 
         # check if data dirs are lists
@@ -37,6 +38,7 @@ class ImageDataGenerator(torch.utils.data.Dataset):
         self._rzoom = rzoom
         self._brightlims = brightlims
         self._noise_var = noise_var
+        self._gray = gray
 
         self._csv_row_to_label = csv_row_to_label
 
@@ -83,7 +85,7 @@ class ImageDataGenerator(torch.utils.data.Dataset):
         # preprocess/augment image
         processed_image = process_image(
             raw_image,
-            gray=True,
+            gray=self._gray,
             bbox=self._bbox,
             dims=self._dims,
             stdiz=self._stdiz,
