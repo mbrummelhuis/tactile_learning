@@ -64,8 +64,7 @@ def train_model_w_metrics(
     lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         factor=learning_params['lr_factor'],
-        patience=learning_params['lr_patience'],
-        verbose=True
+        patience=learning_params['lr_patience']
     )
 
     def run_epoch(loader, n_batches_per_epoch, training=True):
@@ -168,9 +167,11 @@ def train_model_w_metrics(
             print("")
             print("Epoch: {}".format(epoch))
             print("Train Loss: {:.6f}".format(np.mean(train_epoch_loss)))
-            print("Train Acc:  {:.6f}".format(np.mean(train_epoch_acc)))
+            if prediction_mode == 'classification':
+                print("Train Acc:  {:.6f}".format(np.mean(train_epoch_acc)))
             print("Val Loss:   {:.6f}".format(np.mean(val_epoch_loss)))
-            print("Val Acc:    {:.6f}".format(np.mean(val_epoch_acc)))
+            if prediction_mode == 'classification':
+                print("Val Acc:    {:.6f}".format(np.mean(val_epoch_acc)))
             print("")
 
             # write vals to tensorboard
