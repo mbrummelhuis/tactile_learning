@@ -66,6 +66,7 @@ def create_model(
         model.load_state_dict(torch.load(os.path.join(
             saved_model_dir, 'best_model.pth'), map_location='cpu')
         )
+        print(f"Loaded model from {os.path.join(saved_model_dir, 'best_model.pth')}")
 
     if display_model:
         if model_params['model_type'] == 'fcn':
